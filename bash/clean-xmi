@@ -1,0 +1,53 @@
+#!/bin/bash
+#
+# Adds newlines to UIMA XMI files
+#
+# XMI files are, by default, written out as a single line.
+# This script adds newlines at the end of tags to make them more readable.
+#
+
+usage() {
+cat << EOF
+Usage: $0 [OPTIONS] XMIFILE
+
+    Adds newlines to XMIFILE.
+    By default, saves output as {XMIFILE}.clean.
+
+Options:
+    -i          Edit XMIFILE in place
+    -o OUTFILE  Save output to OUTFILE
+EOF
+}
+
+inplace=false
+outfile=
+while getopts "io:" OPTION; do
+    case $OPTION in
+        i)
+            inplace=true
+            ;;
+        o)
+            outfile="$OPTARG"
+    esac
+done
+shift $((OPTIND - 1))
+
+if [ -z "$1" ]; then
+    usage
+    exit
+fi
+infile=$1
+
+if [ -z "$outfile" ]; then
+    outfile="${infile}.clean"
+fi
+
+if [ $inplace = true ]; then
+    sed -i -e 's/\/>/\/>\'$'\n/g' $infile
+    proutf=$infile
+else
+    sed -e 's/\/>/\>\'$'\n/g' $infile > $outfile
+    proutf=$outfile
+fi
+
+echo Cleaned output saved to $proutf.
