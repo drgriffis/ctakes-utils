@@ -5,10 +5,12 @@ Not included in from ctakes.format import *
 '''
 
 import re
+from ..exceptions import *
 
 def getAttributeValue(line, attr_name):
     match = re.findall('%s=".+"' % attr_name, line)
-    assert len(match) == 1
+    if len(match) != 1:
+        raise AttributeNotFoundException(attr_name)
     match = match[0]
 
     opn = match.index('"')
