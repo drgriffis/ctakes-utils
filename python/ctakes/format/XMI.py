@@ -4,11 +4,53 @@ Methods for handling cTAKES XMI output.
 
 import re
 import codecs
+import numpy as np
 from . import common
 from ..annotations import Mention
 from ..exceptions import *
 
 from denis.common import util
+
+def getTokens(fpath):
+    '''Get the ordered list of tokens from the document, as
+    tokenized by cTAKES.
+    '''
+    ### Assumes tokens of each type are stored in the file in sorted order.
+
+    # storage for instances of each token type
+    tokens = [[] for _ in _token_regexes]
+    # storage for starting bound of token type instances
+    starts = [[] for _ in _token_regexes]
+
+    # read the tokens from the XMI file
+    hook = codecs.open(fpath, 'r', 'utf-8')
+    for line in hook:
+        for i in range(len(_token_regexes)):
+            if util.matchesRegex(_token_regexes[i], line):
+                tokens[i].append(getAttributeValue(line, 'normalizedForm'))
+                starts[i].append(int(getAttributeValue(line, 'begin')))
+    hook.close()
+
+    ordered_tokens = []
+
+    # starts_remaining tracks the start indices for the token types left
+    # to empty; contains pairs of token type (index) and start indices
+    starts_remaining = [(i,starts[i]) for i in range(len(starts))]
+    while len(starts_remaining) > 0:
+        # find the next token type from the text
+        next_starts = [start[0] for (_,start) in starts_remaining]
+        next_tokentype = starts_remaining[np.argmin(next_starts)][0]
+        # add the next token
+        ordered_tokens.append(tokens[next_tokentype].pop(0))
+        # and remove its starting index
+        starts_remaining[np.argmin(next_starts)][1].pop(0)
+        # check if any token types are complete
+        new_starts_remaining = []
+        for (i,start) in starts_remaining:
+            if len(start) > 0: new_starts_remaining.append((i,start))
+        starts_remaining = new_starts_remaining
+
+    return ordered_tokens
 
 def getConceptMentions(fpath):
     '''Get the (ambiguous) entity mentions from the XMI file,
@@ -36,8 +78,8 @@ def getConceptMentions(fpath):
                         continue
                     concept_sets.append(concept_ids)
                     bounds.append((
-                        getAttributeValue(line, 'begin'),
-                        getAttributeValue(line, 'end')
+                        int(getAttributeValue(line, 'begin')),
+                        int(getAttributeValue(line, 'end'))
                     ))
                     break   # only one mention type for any given line
     hook.close()
@@ -74,4 +116,11 @@ _mention_regexes = [
     compileRegex('textsem', 'SignSymptomMention'),
     compileRegex('textsem', 'DiseaseDisorderMention'),
     compileRegex('textsem', 'MedicationMention')
+]
+_token_regexes = [
+    compileRegex('syntax', 'SymbolToken'),
+    compileRegex('syntax', 'WordToken'),
+    compileRegex('syntax', 'PunctuationToken'),
+    compileRegex('syntax', 'NumToken'),
+    compileRegex('syntax', 'ContractionToken')
 ]
