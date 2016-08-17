@@ -11,11 +11,19 @@ from ..exceptions import *
 
 from denis.common import util
 
-def getTokens(fpath):
+def getTokens(fpath, mentions=None):
     '''Get the ordered list of tokens from the document, as
     tokenized by cTAKES.
+
+    Parameters:
+        fpath    :: path to XMI file to process
+        mentions :: (optional) list of Mention objects to include
+                    in place of the appropriate token
     '''
     ### Assumes tokens of each type are stored in the file in sorted order.
+
+    # if including mentions, index them by beginning index
+    if mentions != None: indexed_mentions = { m.begin:m for m in mentions }
 
     # storage for instances of each token type
     tokens = [[] for _ in _token_regexes]
@@ -36,23 +44,51 @@ def getTokens(fpath):
     # starts_remaining tracks the start indices for the token types left
     # to empty; contains pairs of token type (index) and start indices
     starts_remaining = [(i,starts[i]) for i in range(len(starts))]
+    cur_mention = None
     while len(starts_remaining) > 0:
         # find the next token type from the text
         next_starts = [start[0] for (_,start) in starts_remaining]
-        next_tokentype = starts_remaining[np.argmin(next_starts)][0]
-        # add the next token
-        ordered_tokens.append(tokens[next_tokentype].pop(0))
-        # and remove its starting index
-        starts_remaining[np.argmin(next_starts)][1].pop(0)
+        next_starts_ix = np.argmin(next_starts)
+        next_tokentype = starts_remaining[next_starts_ix][0]
+        # get the next token
+        next_token = tokens[next_tokentype].pop(0)
+        next_token_start = starts_remaining[next_starts_ix][1][0]
+
+        # if still in a mention
+        if cur_mention != None and cur_mention.end > next_token_start:
+            cur_mention.text.append(next_token)
+        # if just completed a mention
+        elif cur_mention != None and cur_mention.end <= next_token_start:
+            # flush the completed mention
+            cur_mention.text = ' '.join(cur_mention.text)
+            ordered_tokens.append(cur_mention)
+            cur_mention = None
+            # add the token
+            ordered_tokens.append(next_token)
+        # if starting a mention
+        elif mentions != None and indexed_mentions.get(next_token_start, None) != None:
+            cur_mention = indexed_mentions[next_token_start]
+            cur_mention.text = [next_token]
+        # otherwise, just add the word
+        else:
+            ordered_tokens.append(next_token)
+
+        # remove the starting index
+        starts_remaining[next_starts_ix][1].pop(0)
         # check if any token types are complete
         new_starts_remaining = []
         for (i,start) in starts_remaining:
             if len(start) > 0: new_starts_remaining.append((i,start))
         starts_remaining = new_starts_remaining
 
+    # check if still have a mention buffered
+    if cur_mention != None:
+        cur_mention.text = ' '.join(cur_mention.text)
+        ordered_tokens.append(cur_mention)
+
     return ordered_tokens
 
-def getConceptMentions(fpath):
+def getMentions(fpath):
     '''Get the (ambiguous) entity mentions from the XMI file,
     as a list of lists of CUIs.
 
