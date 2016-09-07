@@ -43,7 +43,9 @@ def getTokens(fpath, mentions=None):
 
     # starts_remaining tracks the start indices for the token types left
     # to empty; contains pairs of token type (index) and start indices
-    starts_remaining = [(i,starts[i]) for i in range(len(starts))]
+    starts_remaining = []
+    for i in range(len(starts)):
+        if len(starts[i]) > 0: starts_remaining.append((i,starts[i]))
     cur_mention = None
     while len(starts_remaining) > 0:
         # find the next token type from the text
@@ -90,11 +92,7 @@ def getTokens(fpath, mentions=None):
 
 def getMentions(fpath):
     '''Get the (ambiguous) entity mentions from the XMI file,
-    as a list of lists of CUIs.
-
-    Each entry in the returned list represents a mention; the
-    elements in that list are the different CUIs the mention
-    was tagged with.
+    as a list of Mention objects.
     '''
     concept_sets, bounds = [], []
     concept_cui_map = {}
@@ -137,26 +135,28 @@ def getMentions(fpath):
         ))
     return mentions
 
-def compileRegex(sem_type, annot_type):
-    ptrn = r'^\s*<%s:%s' % (sem_type, annot_type)
-    return re.compile(ptrn)
-
 def getAttributeValue(line, attr_name):
     return common.getAttributeValue(line, attr_name)
 
 
 ### Regexes ################
 
-_umls_concept = compileRegex('refsem', 'UmlsConcept')
+def _compileRegex(sem_type, annot_type):
+    ptrn = r'^\s*<%s:%s' % (sem_type, annot_type)
+    return re.compile(ptrn)
+
+_umls_concept = _compileRegex('refsem', 'UmlsConcept')
 _mention_regexes = [
-    compileRegex('textsem', 'SignSymptomMention'),
-    compileRegex('textsem', 'DiseaseDisorderMention'),
-    compileRegex('textsem', 'MedicationMention')
+    _compileRegex('textsem', 'SignSymptomMention'),
+    _compileRegex('textsem', 'DiseaseDisorderMention'),
+    _compileRegex('textsem', 'MedicationMention'),
+    _compileRegex('textsem', 'ProcedureMention'),
+    _compileRegex('textsem', 'AnatomicalSiteMention')
 ]
 _token_regexes = [
-    compileRegex('syntax', 'SymbolToken'),
-    compileRegex('syntax', 'WordToken'),
-    compileRegex('syntax', 'PunctuationToken'),
-    compileRegex('syntax', 'NumToken'),
-    compileRegex('syntax', 'ContractionToken')
+    _compileRegex('syntax', 'SymbolToken'),
+    _compileRegex('syntax', 'WordToken'),
+    _compileRegex('syntax', 'PunctuationToken'),
+    _compileRegex('syntax', 'NumToken'),
+    _compileRegex('syntax', 'ContractionToken')
 ]
