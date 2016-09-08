@@ -16,3 +16,13 @@ class Mention:
             self.end,
             self.text
         )
+
+    def __eq__(self, other):
+        for c in self.CUIs:
+            if not c in other.CUIs: return False
+        return self.begin == other.begin \
+           and self.end == other.end \
+           and self.text == other.text
+
+    def __neq__(self, other):
+        return not self.__eq__(other)
