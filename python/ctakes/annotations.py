@@ -26,3 +26,9 @@ class Mention:
 
     def __neq__(self, other):
         return not self.__eq__(other)
+
+    def tokenize(self):
+        '''Return list of individual surface tokens for this mention
+        '''
+        if type(self.text) is str: return self.text.strip().split()
+        else: return []
