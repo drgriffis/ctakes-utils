@@ -9,8 +9,6 @@ from . import common
 from ..annotations import Mention
 from ..exceptions import *
 
-from denis.common import util
-
 def getMentions(fpath):
     '''Get the (ambiguous) entity mentions from the XMI file,
     as a list of Mention objects.
@@ -20,13 +18,13 @@ def getMentions(fpath):
 
     hook = codecs.open(fpath, 'r', 'utf-8')
     for line in hook:
-        if util.matchesRegex(_umls_concept, line):
+        if common.matchesRegex(_umls_concept, line):
             concept_id = getAttributeValue(line, 'id')
             concept_cui = getAttributeValue(line, 'cui')
             concept_cui_map[concept_id] = concept_cui
         else:
             for regex in _mention_regexes:
-                if util.matchesRegex(regex, line):
+                if common.matchesRegex(regex, line):
                     try:
                         concept_ids = getAttributeValue(line, 'ontologyConceptArr').split(' ')
                     except AttributeNotFoundException:

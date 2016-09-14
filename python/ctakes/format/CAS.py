@@ -8,8 +8,6 @@ from . import common
 from ..annotations import Mention
 from ..exceptions import *
 
-from denis.common import util
-
 def getMentions(outputf):
     '''Get the (ambiguous) entity mentions from the XMI file,
     as a list of Mention objects.
@@ -22,7 +20,7 @@ def getMentions(outputf):
     for line in hook:
         line = line.strip()
 
-        if util.matchesRegex(_fsarray_start, line):
+        if common.matchesRegex(_fsarray_start, line):
             # grab its bounds from the array_bounds map (should be stored already)
             try:
                 ID = getAttributeValue(line, '_id')
@@ -32,18 +30,18 @@ def getMentions(outputf):
                 in_fsarray = True
             except KeyError as e:
                 pass    # there are _FSArrays for other purposes than just CUI storage
-        elif util.matchesRegex(_fsarray_end, line) and in_fsarray:
+        elif common.matchesRegex(_fsarray_end, line) and in_fsarray:
             if len(cur_fsarray.concept_IDs) > 0: fsarrays.append(cur_fsarray)
             in_fsarray = False
-        elif util.matchesRegex(_concept, line):
+        elif common.matchesRegex(_concept, line):
             _addConcept(line, concepts)
 
-        elif in_fsarray and util.matchesRegex(_fsarray_item, line):
+        elif in_fsarray and common.matchesRegex(_fsarray_item, line):
             mtch = re.findall(r'[0-9]+', line)
             assert len(mtch) == 1
             cur_fsarray.concept_IDs.append(mtch[0])
 
-        elif util.matchesRegex(_entity_mention, line):
+        elif common.matchesRegex(_entity_mention, line):
             _addMentionBounds(line, array_bounds)
 
     hook.close()

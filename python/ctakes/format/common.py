@@ -8,7 +8,6 @@ import re
 import codecs
 import numpy as np
 from ..exceptions import *
-from denis.common import util
 
 def getAttributeValue(line, attr_name):
     '''Return the value of the specified attribute in the input line
@@ -58,7 +57,7 @@ def getTokens(fpath, mentions=None, _token_regexes=[]):
     hook = codecs.open(fpath, 'r', 'utf-8')
     for line in hook:
         for i in range(len(_token_regexes)):
-            if util.matchesRegex(_token_regexes[i], line):
+            if matchesRegex(_token_regexes[i], line):
                 tokens[i].append(getAttributeValue(line, 'normalizedForm'))
                 starts[i].append(int(getAttributeValue(line, 'begin')))
     hook.close()
@@ -140,12 +139,32 @@ def getTokens(fpath, mentions=None, _token_regexes=[]):
                 output_tokens.append(m)
             else:
                 output_tokens.append([
-                    util.flatten([before, m, after])
+                    flatten([before, m, after])
                     for (before, m, after) in t
                 ])
         else: output_tokens.append(t)
 
     return output_tokens
+
+
+### Utility methods #####################
+
+def matchesRegex(regex, string):
+    '''Returns Boolean indicating if the input regex found a positive (non-zero)
+    match in the input string.
+    '''
+    mtch = re.match(regex, string)
+    return mtch != None and mtch.span() != (0,0)
+
+def flatten(arr):
+    '''Given an array of N-dimensional objects (N can vary), returns 1-dimensional
+    list of the contained objects.
+    '''
+    results = []
+    for el in arr:
+        if type(el) == list or type(el) == tuple: results.extend(flatten(el))
+        else: results.append(el)
+    return results
 
 
 ### Inheritance methods #################
