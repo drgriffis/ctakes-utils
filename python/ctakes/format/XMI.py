@@ -1,10 +1,12 @@
 '''
 Methods for handling cTAKES XMI output.
+
+@depends BeautifulSoup
 '''
 
 import re
 import codecs
-import numpy as np
+from bs4 import BeautifulSoup
 from . import common
 from ..annotations import Mention
 from ..exceptions import *
@@ -53,6 +55,17 @@ def getMentions(fpath):
             bounds=bounds[i]
         ))
     return mentions
+
+def getDocumentID(fpath):
+    '''Returns the name of the original file cTAKES parsed
+    to generate this output.
+    '''
+    hook = codecs.open(fpath, 'r', 'utf-8')
+    contents = hook.read()
+    hook.close()
+
+    soup = BeautifulSoup(contents, 'lxml-xml')
+    return soup.XMI.DocumentID['documentID']
 
 def getTokens(outputf, mentions=None):
     return common.getTokens(outputf, mentions=mentions, _token_regexes=_token_regexes)
