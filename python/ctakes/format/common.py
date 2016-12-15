@@ -7,6 +7,7 @@ Not included in from ctakes.format import *
 import re
 import codecs
 import numpy as np
+from bs4 import BeautifulSoup
 from ..exceptions import *
 
 def getAttributeValue(line, attr_name):
@@ -21,7 +22,7 @@ def getAttributeValue(line, attr_name):
     cls = match[opn+1:].index('"')
     return match[opn+1:opn+cls+1]
 
-def getTokens(fpath, mentions=None, _token_regexes=[]):
+def getTokens(fpath, mentions=None, _token_types=[]):
     '''Get the ordered list of tokens from the document, as
     tokenized by cTAKES.
 
@@ -34,11 +35,10 @@ def getTokens(fpath, mentions=None, _token_regexes=[]):
               e.g. [(Mention:"weight loss"), ("weight", Mention:"loss")]
 
     Parameters:
-        fpath    :: path to XMI file to process
-        mentions :: (optional) list of Mention objects to include
-                    in place of the appropriate token
+        fpath        :: path to XMI file to process
+        mentions     :: (optional) list of Mention objects to include
+                        in place of the appropriate token 
     '''
-    ### Assumes tokens of each type are stored in the file in sorted order.
 
     # if including mentions, index them by beginning index
     # (may be multiple beginning at same index)
@@ -49,19 +49,36 @@ def getTokens(fpath, mentions=None, _token_regexes=[]):
             indexed_mentions[m.begin].append(m)
 
     # storage for instances of each token type
-    tokens = [[] for _ in _token_regexes]
+    tokens = [[] for _ in _token_types]
     # storage for starting bound of token type instances
-    starts = [[] for _ in _token_regexes]
-
-    # read the tokens from the XMI file
+    starts = [[] for _ in _token_types]
+    
+    # parse the XML file
     hook = codecs.open(fpath, 'r', 'utf-8')
-    for line in hook:
-        for i in range(len(_token_regexes)):
-            if matchesRegex(_token_regexes[i], line):
-                tokens[i].append(getAttributeValue(line, 'normalizedForm'))
-                starts[i].append(int(getAttributeValue(line, 'begin')))
+    soup = BeautifulSoup(hook.read(), 'lxml-xml')
     hook.close()
-
+    
+    # iterate over the types of token nodes we're looking for
+    for (node_type, regex) in _token_types:
+        # get the child nodes and validate their namespace
+        candidate_nodes, validated_nodes = soup.findChildren(node_type), []
+        for node in candidate_nodes:
+            if matchesRegex(regex, repr(node)): validated_nodes.append(node)
+        # sort them by beginning index
+        node_sorter = { int(node['begin']): node for node in validated_nodes }
+        assert len(node_sorter) == len(validated_nodes)  # no duplicate 'begin' indices
+        indices, sorted_nodes = list(node_sorter.keys()), []
+        indices.sort()
+        for index in indices:
+            sorted_nodes.append(node_sorter[index])
+        # pull out token and beginning index, store separately
+        typed_tokens, typed_starts = [], []
+        for node in sorted_nodes:
+            typed_tokens.append(node['normalizedForm'])
+            typed_starts.append(int(node['begin']))
+        tokens.append(typed_tokens)
+        starts.append(typed_starts)
+    
     ordered_tokens = []
 
     # starts_remaining tracks the start indices for the token types left

@@ -68,7 +68,7 @@ def getDocumentID(fpath):
     return soup.XMI.DocumentID['documentID']
 
 def getTokens(outputf, mentions=None):
-    return common.getTokens(outputf, mentions=mentions, _token_regexes=_token_regexes)
+    return common.getTokens(outputf, mentions=mentions, _token_types=_token_types)
 common.inheritDocstring(getTokens, common.getTokens)
 
 def getAttributeValue(line, attr_name):
@@ -82,6 +82,12 @@ def _compileRegex(sem_type, annot_type):
     ptrn = r'^\s*<%s:%s' % (sem_type, annot_type)
     return re.compile(ptrn)
 
+def _prepareSearches(*ns_node_types):
+    prepared = []
+    for (ns, nodename) in ns_node_types:
+        prepared.append( (nodename, _compileRegex(ns, nodename)) )
+    return prepared
+
 _umls_concept = _compileRegex('refsem', 'UmlsConcept')
 _mention_regexes = [
     _compileRegex('textsem', 'SignSymptomMention'),
@@ -90,10 +96,10 @@ _mention_regexes = [
     _compileRegex('textsem', 'ProcedureMention'),
     _compileRegex('textsem', 'AnatomicalSiteMention')
 ]
-_token_regexes = [
-    _compileRegex('syntax', 'SymbolToken'),
-    _compileRegex('syntax', 'WordToken'),
-    _compileRegex('syntax', 'PunctuationToken'),
-    _compileRegex('syntax', 'NumToken'),
-    _compileRegex('syntax', 'ContractionToken')
-]
+_token_types = _prepareSearches(
+    ('syntax', 'SymbolToken'),
+    ('syntax', 'WordToken'),
+    ('syntax', 'PunctuationToken'),
+    ('syntax', 'NumToken'),
+    ('syntax', 'ContractionToken')
+)
