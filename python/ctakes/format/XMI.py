@@ -67,8 +67,11 @@ def getDocumentID(fpath):
     soup = BeautifulSoup(contents, 'lxml-xml')
     return soup.XMI.DocumentID['documentID']
 
-def getTokens(outputf, mentions=None, get_POS_tags=False):
-    return common.getTokens(outputf, mentions=mentions, get_POS_tags=get_POS_tags, _token_types=_token_types)
+def getTokens(outputf, mentions=None, get_POS_tags=False, words_only=False):
+    if words_only: token_types = _text_token_types
+    else: token_types = _token_types
+    return common.getTokens(outputf, mentions=mentions, get_POS_tags=get_POS_tags,
+        _token_types=token_types)
 common.inheritDocstring(getTokens, common.getTokens)
 
 def getAttributeValue(line, attr_name):
@@ -96,10 +99,14 @@ _mention_regexes = [
     _compileRegex('textsem', 'ProcedureMention'),
     _compileRegex('textsem', 'AnatomicalSiteMention')
 ]
-_token_types = _prepareSearches(
-    ('syntax', 'SymbolToken'),
+_text_token_type_set = [
     ('syntax', 'WordToken'),
-    ('syntax', 'PunctuationToken'),
     ('syntax', 'NumToken'),
     ('syntax', 'ContractionToken')
+]
+_text_token_types = _prepareSearches(*_text_token_type_set)
+_token_types = _prepareSearches(
+    ('syntax', 'SymbolToken'),
+    ('syntax', 'PunctuationToken'),
+    *_text_token_type_set
 )
