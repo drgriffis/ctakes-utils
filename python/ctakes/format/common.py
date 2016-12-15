@@ -22,7 +22,7 @@ def getAttributeValue(line, attr_name):
     cls = match[opn+1:].index('"')
     return match[opn+1:opn+cls+1]
 
-def getTokens(fpath, mentions=None, _token_types=[]):
+def getTokens(fpath, mentions=None, get_POS_tags=False, _token_types=[]):
     '''Get the ordered list of tokens from the document, as
     tokenized by cTAKES.
 
@@ -37,7 +37,9 @@ def getTokens(fpath, mentions=None, _token_types=[]):
     Parameters:
         fpath        :: path to XMI file to process
         mentions     :: (optional) list of Mention objects to include
-                        in place of the appropriate token 
+                        in place of the appropriate token
+        get_POS_tags :: Boolean flag to return POS tag information along
+                        with token strings
     '''
 
     # if including mentions, index them by beginning index
@@ -74,7 +76,13 @@ def getTokens(fpath, mentions=None, _token_types=[]):
         # pull out token and beginning index, store separately
         typed_tokens, typed_starts = [], []
         for node in sorted_nodes:
-            typed_tokens.append(node['normalizedForm'])
+            token_string = node['normalizedForm']
+            if get_POS_tags:
+                try: token_pos = node['partOfSpeech']
+                except KeyError: token_pos = None
+                typed_tokens.append( (token_string, token_pos) )
+            else:
+                typed_tokens.append(token_string)
             typed_starts.append(int(node['begin']))
         tokens.append(typed_tokens)
         starts.append(typed_starts)

@@ -67,8 +67,8 @@ def getDocumentID(fpath):
     soup = BeautifulSoup(contents, 'lxml-xml')
     return soup.XMI.DocumentID['documentID']
 
-def getTokens(outputf, mentions=None):
-    return common.getTokens(outputf, mentions=mentions, _token_types=_token_types)
+def getTokens(outputf, mentions=None, get_POS_tags=False):
+    return common.getTokens(outputf, mentions=mentions, get_POS_tags=get_POS_tags, _token_types=_token_types)
 common.inheritDocstring(getTokens, common.getTokens)
 
 def getAttributeValue(line, attr_name):
@@ -81,7 +81,7 @@ common.inheritDocstring(getAttributeValue, common.getAttributeValue)
 def _compileRegex(sem_type, annot_type):
     ptrn = r'^\s*<%s:%s' % (sem_type, annot_type)
     return re.compile(ptrn)
-
+    
 def _prepareSearches(*ns_node_types):
     prepared = []
     for (ns, nodename) in ns_node_types:
