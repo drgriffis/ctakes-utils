@@ -67,11 +67,11 @@ def getDocumentID(fpath):
     soup = BeautifulSoup(contents, 'lxml-xml')
     return soup.XMI.DocumentID['documentID']
 
-def getTokens(outputf, mentions=None, get_POS_tags=False, words_only=False):
+def getTokens(outputf, mentions=None, get_POS_tags=False, words_only=False, by_sentence=False):
     if words_only: token_types = _text_token_types
     else: token_types = _token_types
     return common.getTokens(outputf, mentions=mentions, get_POS_tags=get_POS_tags,
-        _token_types=token_types)
+        by_sentence=by_sentence, _token_types=token_types, _sentence_type=_sentence_type)
 common.inheritDocstring(getTokens, common.getTokens)
 
 def getAttributeValue(line, attr_name):
@@ -89,7 +89,8 @@ def _prepareSearches(*ns_node_types):
     prepared = []
     for (ns, nodename) in ns_node_types:
         prepared.append( (nodename, _compileRegex(ns, nodename)) )
-    return prepared
+    if len(prepared) == 1: return prepared[0]
+    else: return prepared
 
 _umls_concept = _compileRegex('refsem', 'UmlsConcept')
 _mention_regexes = [
@@ -109,4 +110,7 @@ _token_types = _prepareSearches(
     ('syntax', 'SymbolToken'),
     ('syntax', 'PunctuationToken'),
     *_text_token_type_set
+)
+_sentence_type = _prepareSearches(
+    ('textspan', 'Sentence')    
 )

@@ -9,6 +9,7 @@ import codecs
 import numpy as np
 from bs4 import BeautifulSoup
 from ..exceptions import *
+from ..annotations import *
 
 def getAttributeValue(line, attr_name):
     '''Return the value of the specified attribute in the input line
@@ -22,7 +23,7 @@ def getAttributeValue(line, attr_name):
     cls = match[opn+1:].index('"')
     return match[opn+1:opn+cls+1]
 
-def getTokens(fpath, mentions=None, get_POS_tags=False, _token_types=[]):
+def getTokens(fpath, mentions=None, get_POS_tags=False, by_sentence=False, _token_types=[], _sentence_type=None):
     '''Get the ordered list of tokens from the document, as
     tokenized by cTAKES.
 
@@ -40,6 +41,8 @@ def getTokens(fpath, mentions=None, get_POS_tags=False, _token_types=[]):
                         in place of the appropriate token
         get_POS_tags :: Boolean flag to return POS tag information along
                         with token strings
+        by_sentence  :: return lists of tokens, where each corresponds to a
+                        single sentence as partitioned by cTAKES
     '''
 
     # if including mentions, index them by beginning index
@@ -62,17 +65,9 @@ def getTokens(fpath, mentions=None, get_POS_tags=False, _token_types=[]):
     
     # iterate over the types of token nodes we're looking for
     for (node_type, regex) in _token_types:
-        # get the child nodes and validate their namespace
-        candidate_nodes, validated_nodes = soup.findChildren(node_type), []
-        for node in candidate_nodes:
-            if matchesRegex(regex, repr(node)): validated_nodes.append(node)
-        # sort them by beginning index
-        node_sorter = { int(node['begin']): node for node in validated_nodes }
-        assert len(node_sorter) == len(validated_nodes)  # no duplicate 'begin' indices
-        indices, sorted_nodes = list(node_sorter.keys()), []
-        indices.sort()
-        for index in indices:
-            sorted_nodes.append(node_sorter[index])
+        # get valid child nodes and sort by beginning index
+        validated_nodes = _get_and_validate_children(soup, node_type, regex)
+        sorted_nodes = _sort_by_position(validated_nodes, attr='begin')
         # pull out token and beginning index, store separately
         typed_tokens, typed_starts = [], []
         for node in sorted_nodes:
@@ -86,6 +81,15 @@ def getTokens(fpath, mentions=None, get_POS_tags=False, _token_types=[]):
             typed_starts.append(int(node['begin']))
         tokens.append(typed_tokens)
         starts.append(typed_starts)
+
+    # if getting by sentence, fetch and order all the tagged sentences
+    if by_sentence:
+        (sentence_node_type, sentence_regex) = _sentence_type
+        # get sentence nodes and sort by beginning index
+        validated_nodes = _get_and_validate_children(soup, sentence_node_type, sentence_regex)
+        sorted_sentences = _sort_by_position(validated_nodes, attr='begin')
+        # cast to Sentence objects
+        sorted_sentences = [Sentence(bounds=(int(s['begin']), int(s['end']))) for s in sorted_sentences]
     
     ordered_tokens = []
 
@@ -99,6 +103,9 @@ def getTokens(fpath, mentions=None, get_POS_tags=False, _token_types=[]):
     overlap_sofar = []  # tokens in the current overlap preceding the next mention
     in_mention = False  # are we currently in >0 mentions?
 
+    if by_sentence:
+        current_sentence = None
+
     while len(starts_remaining) > 0:
         # find the next token type from the text
         next_starts = [start[0] for (_,start) in starts_remaining]
@@ -108,7 +115,7 @@ def getTokens(fpath, mentions=None, get_POS_tags=False, _token_types=[]):
         next_token = tokens[next_tokentype].pop(0)
         next_token_start = starts_remaining[next_starts_ix][1][0]
 
-        # if still in one or more mentions
+        # if still in one or more mentions, try to resolve them
         if in_mention:
             # check for completed mentions and add token appropriately
             in_mention = False
@@ -119,14 +126,30 @@ def getTokens(fpath, mentions=None, get_POS_tags=False, _token_types=[]):
                 else:
                     after.append(next_token)
 
+                # make sure no mentions are going outside a sentence
+                if by_sentence and not current_sentence is None:
+                    assert m.end <= current_sentence.end
+
             # if all mentions completed, flush them as a block
             if not in_mention:
                 for (before, m, after) in cur_mentions:
                     m.text = ' '.join(m.text)
                     after.pop(-1) # the last token is spurious
-                ordered_tokens.append(cur_mentions)
+                if by_sentence and not current_sentence is None:
+                    current_sentence.tokens.append(cur_mentions)
+                else:
+                    ordered_tokens.append(cur_mentions)
                 # and reset the overlap trackers
                 cur_mentions, overlap_sofar = [], []
+
+        # if in a sentence, try to resolve it
+        if by_sentence and not current_sentence is None:
+            if current_sentence.end <= next_token_start:
+                ordered_tokens.append(current_sentence)
+                current_sentence = None
+        # if at the start of a sentence, load it in
+        if by_sentence and len(sorted_sentences) > 0 and next_token_start >= sorted_sentences[0].begin:
+            current_sentence = sorted_sentences.pop(0)
 
         # if starting a mention
         if mentions != None and indexed_mentions.get(next_token_start, None) != None:
@@ -139,7 +162,10 @@ def getTokens(fpath, mentions=None, get_POS_tags=False, _token_types=[]):
 
         # otherwise, just add the word
         if not in_mention:
-            ordered_tokens.append(next_token)
+            if by_sentence and not current_sentence is None:
+                current_sentence.tokens.append(next_token)
+            else:
+                ordered_tokens.append(next_token)
 
         # remove the starting index
         starts_remaining[next_starts_ix][1].pop(0)
@@ -153,12 +179,43 @@ def getTokens(fpath, mentions=None, get_POS_tags=False, _token_types=[]):
     if in_mention:
         for (before, m, after) in cur_mentions:
             m.text = ' '.join(m.text)
-        ordered_tokens.append(cur_mentions)
+        if by_sentence and not current_sentence is None:
+            current_sentence.tokens.append(cur_mentions)
+        else:
+            ordered_tokens.append(cur_mentions)
+
+    # check if still have a sentence buffered
+    if by_sentence and not current_sentence is None:
+        ordered_tokens.append(current_sentence)
+        current_sentence = None
 
     # flatten mentions and contexts
+    output_tokens = _flatten_mention_spans(ordered_tokens)
+
+    return output_tokens
+
+def _get_and_validate_children(soup, node_type, validation_regex):
+    candidate_nodes, validated_nodes = soup.findChildren(node_type), []
+    for node in candidate_nodes:
+        if matchesRegex(validation_regex, repr(node)): validated_nodes.append(node)
+    return validated_nodes
+
+def _sort_by_position(nodes, attr='begin'):
+    node_sorter = { int(node[attr]): node for node in nodes }
+    assert len(node_sorter) == len(nodes)  # no duplicate 'begin' indices
+    indices, sorted_nodes = list(node_sorter.keys()), []
+    indices.sort()
+    for index in indices:
+        sorted_nodes.append(node_sorter[index])
+    return sorted_nodes
+
+def _flatten_mention_spans(token_list):
     output_tokens = []
-    for t in ordered_tokens:
-        if type(t) == list:
+    for t in token_list:
+        if type(t) == Sentence:
+            t.tokens = _flatten_mention_spans(t.tokens)
+            output_tokens.append(t)
+        elif type(t) == list:
             if len(t) == 1:
                 (before, m, after) = t[0]
                 output_tokens.append(m)
@@ -168,7 +225,6 @@ def getTokens(fpath, mentions=None, get_POS_tags=False, _token_types=[]):
                     for (before, m, after) in t
                 ])
         else: output_tokens.append(t)
-
     return output_tokens
 
 

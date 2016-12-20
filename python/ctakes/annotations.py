@@ -32,3 +32,10 @@ class Mention:
         '''
         if type(self.text) is str: return self.text.strip().split()
         else: return []
+
+class Sentence:
+    def __init__(self, bounds=None, tokens=None):
+        if tokens is None: self.tokens = []
+        else: self.tokens = tokens
+        self.begin = bounds[0] if not bounds is None else None
+        self.end = bounds[1] if not bounds is None else None
